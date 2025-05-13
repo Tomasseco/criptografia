@@ -3,6 +3,7 @@ using System.Text;
 using System.Security.Cryptography;
 using ClaveSimetricaClass;
 using ClaveAsimetricaClass;
+using System.Collections;
 
 namespace SimuladorEnvioRecepcion
 {
@@ -47,31 +48,71 @@ namespace SimuladorEnvioRecepcion
 
             if (login)
             {                  
-                        
+                Console.WriteLine("\n--- Simulación de envío y recepción ---");
 
-
+                //Este es el mensaje que vamos a enviar un mensaje al receptor
                 
-                //LADO EMISOR
+                byte[] TextoAEnviar_Bytes = Encoding.UTF8.GetBytes(TextoAEnviar);
+                Console.WriteLine("Texto original: {0}", TextoAEnviar);
 
                 //Firmar mensaje
+                byte[] firmaDigital = Emisor.FirmarMensaje(TextoAEnviar_Bytes);
+                Console.WriteLine("Mensaje firmado con la clave privada del emisor.");
+                Console.WriteLine("Firma digital: {0}", BytesToStringHex(firmaDigital));
 
-
-                //Cifrar mensaje con la clave simétrica
-
+                //Cifrar mensaje con clave simétrica
+                byte[] mensajeCifrado = ClaveSimetricaEmisor.CifrarMensaje(TextoAEnviar);
+                Console.WriteLine("Mensaje cifrado con AES.");
 
                 //Cifrar clave simétrica con la clave pública del receptor
+                byte[] claveCifrada = Receptor.CifrarMensaje(ClaveSimetricaEmisor.Key, Receptor.PublicKey);
+                byte[] ivCifrado = Receptor.CifrarMensaje(ClaveSimetricaEmisor.IV, Receptor.PublicKey);
+                Console.WriteLine("Clave AES e IV cifrados con clave pública del receptor.");
 
-                //LADO RECEPTOR
+                // ========== Enviamos los datos ==========
+                // Cuando las claves y el mensaje se envian a traves de un canal inseguro, el receptor recibe los siguientes datos
+                // Mensaje cifrado
+                // Clave AES cifrada
+                // IV cifrado
+                // Firma digital
+                // ========================================
+                
+                // Siguiendo el flujo del ejercicio vamos con el receptor
+                // Receptor descifra la clave AES y IV
+                
+                byte[] claveDescifrada = Receptor.DescifrarMensaje(claveCifrada);
+                byte[] ivDescifrado = Receptor.DescifrarMensaje(ivCifrado);
+                ClaveSimetricaReceptor.Key = claveDescifrada;
+                ClaveSimetricaReceptor.IV = ivDescifrado;
+                Console.WriteLine("Clave AES y IV descifradas.");
 
-                //Descifrar clave simétrica
+                //Receptor descifra el mensaje con la clave AES
+                string mensajeDescifrado = ClaveSimetricaReceptor.DescifrarMensaje(mensajeCifrado);
+                Console.WriteLine("Mensaje descifrado: {0}", mensajeDescifrado);
 
-                 
+                //Comprobar integridad del mensaje comparando hashes
+                byte[] hashOriginal = SHA512.Create().ComputeHash(TextoAEnviar_Bytes);
+                
+                //Prueba para ver si realmente funciona la verificación de hashes
+                //Modifico el mensaje descifrado para que no sea igual al original
+                //mensajeDescifrado="Yo solo se que no se nada, y despues de la pedrá, menos todavia.";
+                
+                byte[] hashRecibido = SHA512.Create().ComputeHash(Encoding.UTF8.GetBytes(mensajeDescifrado));
+                bool hashesIguales = StructuralComparisons.StructuralEqualityComparer.Equals(hashOriginal, hashRecibido);
+                Console.WriteLine("No hay diferencia en los dos hashes: {0}", hashesIguales);
 
-                //Descifrar mensaje con la clave simétrica
+              
+                //Verificar firma con la clave pública del emisor
+                bool firmaValida = Receptor.ComprobarFirma(firmaDigital, Encoding.UTF8.GetBytes(mensajeDescifrado), Emisor.PublicKey);
+                Console.WriteLine("La firma es valida: {0}", firmaValida);
 
-
-                //Comprobar firma
-
+                //La hora de la verdad
+                if (hashesIguales && firmaValida) {
+                    Console.WriteLine("El mensaje es el mismo que el original.");
+                }   else    {
+                    Console.WriteLine("Quietor!, el mensaje no es el mismo que el original.");
+                }
+            
             }
         }
 
