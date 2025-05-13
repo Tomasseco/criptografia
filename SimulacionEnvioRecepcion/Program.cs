@@ -10,10 +10,12 @@ namespace SimuladorEnvioRecepcion
     {   
         static string UserName;
         static string SecurePass;  
+        static byte[] Salt;
         static ClaveAsimetrica Emisor = new ClaveAsimetrica();
         static ClaveAsimetrica Receptor = new ClaveAsimetrica();
         static ClaveSimetrica ClaveSimetricaEmisor = new ClaveSimetrica();
         static ClaveSimetrica ClaveSimetricaReceptor = new ClaveSimetrica();
+
 
         static string TextoAEnviar = "Me he dado cuenta que incluso las personas que dicen que todo está predestinado y que no podemos hacer nada para cambiar nuestro destino igual miran antes de cruzar la calle. Stephen Hawking.";
         
@@ -22,24 +24,32 @@ namespace SimuladorEnvioRecepcion
 
             /****PARTE 1****/
             //Login / Registro
+            Console.Clear();
+            Console.WriteLine ("--------------------- LOGIN / REGISTRO ---------------------\n");
             Console.WriteLine ("¿Deseas registrarte? (S/N)");
             string registro = Console.ReadLine ();
 
-            if (registro =="S")
+            if (registro.ToLower() =="s")
             {
                 //Realizar registro del cliente
-                Registro();                
+                Console.WriteLine("----------------------- REGISTRO -----------------------");
+                Registro();   
+                Console.WriteLine("--------------------- FIN REGISTRO ---------------------\n");             
+
             }
 
             //Realizar login
+            Console.WriteLine("------------------------ LOGIN -------------------------");
             bool login = Login();
+            Console.WriteLine("---------------------- FIN LOGIN -----------------------");
 
             /***FIN PARTE 1***/
 
             if (login)
             {                  
-                byte[] TextoAEnviar_Bytes = Encoding.UTF8.GetBytes(TextoAEnviar); 
-                Console.WriteLine("Texto a enviar bytes: {0}", BytesToStringHex(TextoAEnviar_Bytes));    
+                        
+
+
                 
                 //LADO EMISOR
 
@@ -55,9 +65,7 @@ namespace SimuladorEnvioRecepcion
 
                 //Descifrar clave simétrica
 
-                
-                //Descifrar clave simétrica
- 
+                 
 
                 //Descifrar mensaje con la clave simétrica
 
@@ -69,37 +77,80 @@ namespace SimuladorEnvioRecepcion
 
         public static void Registro()
         {
-            Console.WriteLine ("Indica tu nombre de usuario:");
+            Console.WriteLine("Indica tu nombre de usuario:");
             UserName = Console.ReadLine();
-            //Una vez obtenido el nombre de usuario lo guardamos en la variable UserName y este ya no cambiará 
 
-            Console.WriteLine ("Indica tu password:");
+            Console.WriteLine("Indica tu password:");
             string passwordRegister = Console.ReadLine();
-            //Una vez obtenido el passoword de registro debemos tratarlo como es debido para almacenarlo correctamente a la variable SecurePass
 
-            /***PARTE 1***/
-            /*Añadir el código para poder almacenar el password de manera segura*/
+            // Generamos un salt aleatorio
+            using (var rng = new RNGCryptoServiceProvider())
+            {
+                Salt = new byte[16];
+                rng.GetBytes(Salt);
+            }
 
+            // Hash de la contraseña con SHA512 y el salt
+            using (var sha512 = SHA512.Create())
+            {
+                byte[] passwordBytes = Encoding.UTF8.GetBytes(passwordRegister);
+                byte[] passwordConSalt = new byte[passwordBytes.Length + Salt.Length];
+
+                Buffer.BlockCopy(passwordBytes, 0, passwordConSalt, 0, passwordBytes.Length);
+                Buffer.BlockCopy(Salt, 0, passwordConSalt, passwordBytes.Length, Salt.Length);
+
+                SecurePass = Convert.ToBase64String(sha512.ComputeHash(passwordConSalt));
+            }
+
+            Console.WriteLine("Se ha registrado correctamente.");
         }
+
 
 
         public static bool Login()
         {
             bool auxlogin = false;
+
             do
             {
-                Console.WriteLine ("Acceso a la aplicación");
-                Console.WriteLine ("Usuario: ");
+                Console.WriteLine("Acceso a la aplicación");
+                Console.WriteLine("Usuario: ");
                 string userName = Console.ReadLine();
 
-                Console.WriteLine ("Password: ");
+                Console.WriteLine("Password: ");
                 string Password = Console.ReadLine();
 
-                /***PARTE 1***/
-                /*Modificar esta parte para que el login se haga teniendo en cuenta que el registro se realizó con SHA512 y salt*/
+                // Comprobar nombre de usuario
+                if (userName != UserName)
+                {
+                    Console.WriteLine("Usuario incorrecto.");
+                    continue;
+                }
 
+                // Recalcular el hash con el mismo salt
+                using (var sha512 = SHA512.Create())
+                {
+                    byte[] passwordBytes = Encoding.UTF8.GetBytes(Password);
+                    byte[] passwordConSalt = new byte[passwordBytes.Length + Salt.Length];
 
-            }while (!auxlogin);
+                    Buffer.BlockCopy(passwordBytes, 0, passwordConSalt, 0, passwordBytes.Length);
+                    Buffer.BlockCopy(Salt, 0, passwordConSalt, passwordBytes.Length, Salt.Length);
+
+                    string hashLogin = Convert.ToBase64String(sha512.ComputeHash(passwordConSalt));
+
+                    // Comparar con hash original
+                    if (hashLogin == SecurePass)
+                    {
+                        Console.WriteLine("Login correcto.");
+                        auxlogin = true;
+                    }
+                    else
+                    {
+                        Console.WriteLine("Contraseña incorrecta.");
+                    }
+                }
+
+            } while (!auxlogin);
 
             return auxlogin;
         }
